@@ -10,6 +10,6 @@ logs
 .vscode
 pkg
 .vagrant
-src/t
+t
 conf/me
 src/cmd
