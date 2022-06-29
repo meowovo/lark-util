@@ -8,7 +8,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func (l *LarkU) CreateExcel(folderToken, title string) (success bool, spreadsheetToken string, err error) {
+func (l *LarkU) CreateExcel(folderToken, title string) (spreadsheetToken string, err error) {
 	httpCode, respBody, err := l.LarkPost("/open-apis/sheets/v3/spreadsheets", map[string]interface{}{
 		"folder_token": folderToken,
 		"title":        title,
@@ -36,7 +36,6 @@ func (l *LarkU) CreateExcel(folderToken, title string) (success bool, spreadshee
 		err = errors.Errorf("remote service error: code = %d | %s", m.Code, m.Msg)
 		return
 	}
-	success = true
 	spreadsheetToken = m.Data.SpreadSheet.SpreadsheetToken
 	return
 }
