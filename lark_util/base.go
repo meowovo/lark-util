@@ -118,3 +118,27 @@ func (l *LarkU) LarkGet(path string, form url.Values) (httpCode int, responseBod
 	httpCode = resp.StatusCode
 	return
 }
+
+func (l *LarkU) LarkPut(path string, param map[string]interface{}) (httpCode int, responseBody []byte, err error) {
+	b, _ := json.Marshal(param)
+	var bufferBody *bytes.Buffer
+	if b == nil || len(b) <= 0 {
+		bufferBody = bytes.NewBuffer([]byte("{}"))
+	} else {
+		bufferBody = bytes.NewBuffer(b)
+	}
+	req, err := http.NewRequest(http.MethodPut, "https://"+l.larkHost+path, bufferBody)
+	if err != nil {
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+l.larkToken)
+	resp, err := l.client.Do(req)
+	if err != nil {
+		httpCode = http.StatusInternalServerError
+		return
+	}
+	responseBody, err = ioutil.ReadAll(resp.Body)
+	httpCode = resp.StatusCode
+	return
+}

@@ -3,30 +3,30 @@ package lark_util
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
+
+	"github.com/pkg/errors"
 )
 
-var (
-	userId string
-	email  string
-)
-
-func getUserId() string {
-	if userId != "" {
-		return userId
-	}
-
+func (l *LarkU) GetUserId(email string) (userId string, err error) {
 	if email == "" {
 		panic("email is empty")
 	}
 
-	httpCode, respBody, err := larkPost("/open-apis/contact/v3/users/batch_get_id", map[string]interface{}{
+	httpCode, respBody, err := l.LarkPost("/open-apis/contact/v3/users/batch_get_id", map[string]interface{}{
 		"emails": []string{email},
 	})
 	if err != nil {
-		return ""
+		err = errors.Errorf("http error: %+v", err)
+		return
+	}
+	if httpCode != http.StatusOK {
+		err = errors.Errorf("http error: code= %d | %+v", httpCode, respBody)
+		return
 	}
 	type GetUserIdResp struct {
-		Code int32 `json:"code,omitempty"`
+		Code int32  `json:"code,omitempty"`
+		Msg  string `json:"msg"`
 		Data struct {
 			UserList []struct {
 				UserId string `json:"user_id,omitempty"`
@@ -36,6 +36,10 @@ func getUserId() string {
 	}
 	m := new(GetUserIdResp)
 	_ = json.Unmarshal(respBody, &m)
+	if m.Code != 0 {
+		err = errors.Errorf("remote service error: code = %d | %s", m.Code, m.Msg)
+		return
+	}
 	userId = fmt.Sprint(m.Data.UserList[0].UserId)
-	return userId
+	return
 }
