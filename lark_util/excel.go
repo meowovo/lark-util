@@ -45,11 +45,11 @@ func (l *LarkU) CreateExcel(folderToken, title string) (spreadsheetToken string,
 type (
 	// ExcelInfo 表格元数据
 	ExcelInfo struct {
-		Properties       Properties `json:"properties"`
-		Sheets           []Sheets   `json:"sheets"`
-		SpreadsheetToken string     `json:"spreadsheetToken"`
+		Properties       *ExcelProperties `json:"properties"`
+		Sheets           []*Sheets        `json:"sheets"`
+		SpreadsheetToken string           `json:"spreadsheetToken"`
 	}
-	Properties struct {
+	ExcelProperties struct {
 		Title       string `json:"title"`       // 表格的标题
 		OwnerUserId int    `json:"ownerUserId"` // 所有者的 id，取决于user_id_type的值，仅user_id_type不为空是返回该值
 		SheetCount  int    `json:"sheetCount"`  // sheet 数
@@ -120,28 +120,78 @@ func (l *LarkU) GetExcelInfo(excelToken string, extFields string, userIdType str
 	return
 }
 
-func (l *LarkU) UpdateSheetTitle(excelToken, sheetId, title string) (err error) {
-	type UpdateSheetReq struct {
-		Requests []struct {
-			UpdateSheet struct {
-				Properties struct {
-					SheetId string `json:"sheetId"`
-					Title   string `json:"title"`
-				} `json:"properties"`
-			} `json:"updateSheet"`
-		} `json:"requests"`
+type UpdateExcelReq struct {
+	ExcelToken string
+	Properties struct {
+		Title string `json:"title"` // 标题，最大长度100个字符
+	} `json:"properties"`
+}
+
+// UpdateExcel 更新表格属性,暂时只有更新标题
+func (l *LarkU) UpdateExcel(req *UpdateExcelReq) (err error) {
+	httpCode, respBody, err := l.LarkPut("/open-apis/sheets/v2/spreadsheets/"+req.ExcelToken+"/properties", map[string]interface{}{
+		"properties": req.Properties,
+	})
+	if err != nil {
+		err = errors.Errorf("http error: %+v", err)
+		return
 	}
-	httpCode, respBody, err := l.LarkPost("/open-apis/sheets/v2/spreadsheets/"+excelToken+"/sheets_batch_update", map[string]interface{}{
-		"requests": []interface{}{
-			map[string]interface{}{
-				"updateSheet": map[string]interface{}{
-					"properties": map[string]interface{}{
-						"sheetId": sheetId,
-						"title":   title,
-					},
-				},
-			},
-		},
+	if httpCode != http.StatusOK {
+		err = errors.Errorf("http error: code= %d | %s", httpCode, string(respBody))
+	}
+	return
+}
+
+type (
+	HandleSheetReq struct {
+		ExcelToken string
+		Requests   []*HandleSheetRequest `json:"requests,omitempty"`
+	}
+	AddSheet struct {
+		Properties HandleSheetProperties `json:"properties,omitempty"`
+	}
+	HandleSheetSource struct {
+		SheetID string `json:"sheetId,omitempty"`
+	}
+	HandleSheetDestination struct {
+		Title string `json:"title,omitempty"`
+	}
+	CopySheet struct {
+		Source      *HandleSheetSource      `json:"source,omitempty"`
+		Destination *HandleSheetDestination `json:"destination,omitempty"`
+	}
+	DeleteSheet struct {
+		SheetID string `json:"sheetId,omitempty"`
+	}
+	HandleSheetProtect struct {
+		Lock     string   `json:"lock"`               // LOCK 、UNLOCK 上锁/解锁
+		LockInfo string   `json:"lockInfo,omitempty"` // 锁定信息
+		UserIDs  []string `json:"userIDs,omitempty"`  // 除了本人与所有者外，添加其他的可编辑人员,user_id_type不为空时使用该字段
+	}
+	HandleSheetProperties struct {
+		SheetID        string              `json:"sheetId,omitempty"`        // read-only ,作为表格唯一识别参数
+		Title          string              `json:"title,omitempty"`          // 新增/更改工作表标题
+		Index          string              `json:"index,omitempty"`          // 新增工作表的位置，不填默认往前增加工作表 | 移动工作表的位置
+		Hidden         string              `json:"hidden,omitempty"`         // 隐藏表格，默认false
+		FrozenColCount string              `json:"frozenColCount,omitempty"` // 冻结行数，小于等于工作表的最大行数，0表示取消冻结行
+		FrozenRowCount string              `json:"frozenRowCount,omitempty"` // 该 sheet 的冻结列数，小于等于工作表的最大列数，0表示取消冻结列
+		Protect        *HandleSheetProtect `json:"protect,omitempty"`        // 锁定表格
+	}
+	UpdateSheet struct {
+		Properties *HandleSheetProperties `json:"properties,omitempty"`
+	}
+	HandleSheetRequest struct {
+		AddSheet    *AddSheet    `json:"addSheet,omitempty"`
+		CopySheet   *CopySheet   `json:"copySheet,omitempty"`
+		DeleteSheet *DeleteSheet `json:"deleteSheet,omitempty"`
+		UpdateSheet *UpdateSheet `json:"updateSheet,omitempty"`
+	}
+)
+
+// HandleSheet 操作工作表,包括增删复制
+func (l *LarkU) HandleSheet(req *HandleSheetReq) (err error) {
+	httpCode, respBody, err := l.LarkPost("/open-apis/sheets/v2/spreadsheets/"+req.ExcelToken+"/sheets/sheets_batch_update", map[string]interface{}{
+		"requests": req.Requests,
 	})
 	if err != nil {
 		err = errors.Errorf("http error: %+v", err)
