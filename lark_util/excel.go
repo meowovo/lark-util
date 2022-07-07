@@ -254,7 +254,7 @@ type (
 	InsertDimensionReq struct {
 		ExcelToken   string
 		Dimension    *InsertDimension `json:"dimension"`
-		InheritStyle string           `json:"inheritStyle,omitempty"` // BEFORE 或 AFTER，不填为不继承 style
+		InheritStyle string           `json:"inheritStyle,omitempty"` // BEFORE 或 AFTER,不填为不继承 style
 	}
 	InsertDimension struct {
 		SheetID        string `json:"sheetId"`
@@ -326,7 +326,7 @@ type (
 		DestinationIndex int                  `json:"destination_index,omitempty"`
 	}
 	MoveDimensionSource struct {
-		MajorDimension string `json:"major_dimension,omitempty"` // 操作行还是列，取值：ROWS、COLUMNS
+		MajorDimension string `json:"major_dimension,omitempty"` // 操作行还是列,取值：ROWS、COLUMNS
 		StartIndex     int    `json:"start_index,omitempty"`
 		EndIndex       int    `json:"end_index,omitempty"`
 	}
@@ -378,12 +378,41 @@ func (l *LarkU) DelDimension(req *DelDimensionReq) (err error) {
 
 /** -------------------------------------------------行列--------------------------------------------------------------------- **/
 
+/** -------------------------------------------------单元格------------------------------------------------------------------- **/
+
+type (
+	InsertValueToCellReq struct {
+		ExcelToken string
+		ValueRange InsertValueToCellValueRange `json:"valueRange"`
+	}
+	InsertValueToCellValueRange struct {
+		Range  string          `json:"range"`
+		Values [][]interface{} `json:"values"`
+	}
+)
+
+// InsertValueToCell 根据 spreadsheetToken 和 range 向范围之前增加相应数据的行和相应的数据,相当于数组的插入操作;单次写入不超过5000行,100列,每个格子不超过5万字符
+func (l *LarkU) InsertValueToCell(req *InsertValueToCellReq) (err error) {
+	httpCode, respBody, err := l.LarkPost("/open-apis/sheets/v2/spreadsheets/"+req.ExcelToken+"/values_prepend", map[string]interface{}{
+		"valueRange": req.ValueRange,
+	})
+	if err != nil {
+		err = errors.Errorf("http error: %+v", err)
+		return
+	}
+	if httpCode != http.StatusOK {
+		err = errors.Errorf("http error: code= %d | %s", httpCode, string(respBody))
+	}
+	return
+}
+
 const (
 	MergeCellTypeAll     = "MERGE_ALL"
 	MergeCellTypeRows    = "MERGE_ROWS"
 	MergeCellTypeCOLUMNS = "MERGE_COLUMNS"
 )
 
+// MergeCells 合并单元格
 func (l *LarkU) MergeCells(excelToken, sheetId, cellRange, mergeType string) (err error) {
 	if mergeType == "" {
 		mergeType = MergeCellTypeAll
@@ -402,49 +431,39 @@ func (l *LarkU) MergeCells(excelToken, sheetId, cellRange, mergeType string) (er
 	return
 }
 
-type SetCellStyleReq struct {
-	AppendStyle AppendStyle `json:"appendStyle,omitempty"`
-	ExcelToken  string
-}
-type Font struct {
-	Bold     bool   `json:"bold,omitempty"`
-	Italic   bool   `json:"italic,omitempty"`
-	FontSize string `json:"fontSize,omitempty"`
-	Clean    bool   `json:"clean,omitempty"`
-}
-type Style struct {
-	Font           Font   `json:"font,omitempty"`
-	TextDecoration int    `json:"textDecoration,omitempty"`
-	Formatter      string `json:"formatter,omitempty"`
-	HAlign         int    `json:"hAlign,omitempty"`
-	VAlign         int    `json:"vAlign,omitempty"`
-	ForeColor      string `json:"foreColor,omitempty"`
-	BackColor      string `json:"backColor,omitempty"`
-	BorderType     string `json:"borderType,omitempty"`
-	BorderColor    string `json:"borderColor,omitempty"`
-	Clean          bool   `json:"clean,omitempty"`
-}
-type AppendStyle struct {
-	Range string `json:"range"`
-	Style Style  `json:"style"`
-}
-
-type SetCellStyleResp struct {
-	Code int    `json:"code"`
-	Msg  string `json:"msg"`
+type (
+	BatchUpdateCellStyleReq struct {
+		ExcelToken string
+		Data       []Data `json:"data"`
+	}
+	Font struct {
+		Bold     bool   `json:"bold,omitempty"`     // 是否加粗
+		Italic   bool   `json:"italic,omitempty"`   // 是否斜体
+		FontSize string `json:"fontSize,omitempty"` // 字体大小 10pt/1.5
+		Clean    bool   `json:"clean,omitempty"`    // 清除 font 格式,默认 false
+	}
+	Style struct {
+		Font           Font   `json:"font,omitempty"`           // 字体
+		TextDecoration int    `json:"textDecoration,omitempty"` // 文本装饰 ，0 默认，1 下划线，2 删除线 ，3 下划线和删除线
+		Formatter      string `json:"formatter,omitempty"`      // 数字格式
+		HAlign         int    `json:"hAlign,omitempty"`         // 水平对齐，0 左对齐，1 中对齐，2 右对齐
+		VAlign         int    `json:"vAlign,omitempty"`         // 垂直对齐， 0 上对齐，1 中对齐， 2 下对齐
+		ForeColor      string `json:"foreColor,omitempty"`      // 字体颜色
+		BackColor      string `json:"backColor,omitempty"`      // 背景颜色
+		BorderType     string `json:"borderType,omitempty"`     // 边框类型，可选 "FULL_BORDER"，"OUTER_BORDER"，"INNER_BORDER"，"NO_BORDER"，"LEFT_BORDER"，"RIGHT_BORDER"，"TOP_BORDER"，"BOTTOM_BORDER"
+		BorderColor    string `json:"borderColor,omitempty"`    // 边框颜色
+		Clean          bool   `json:"clean,omitempty"`          // 是否清除所有格式,默认 false
+	}
 	Data struct {
-		SpreadsheetToken string `json:"spreadsheetToken"`
-		UpdatedRange     string `json:"updatedRange"`
-		UpdatedRows      int    `json:"updatedRows"`
-		UpdatedColumns   int    `json:"updatedColumns"`
-		UpdatedCells     int    `json:"updatedCells"`
-		Revision         int    `json:"revision"`
-	} `json:"data"`
-}
+		Ranges []string `json:"ranges"`
+		Style  Style    `json:"style"`
+	}
+)
 
-func (l *LarkU) SetCellStyle(req *SetCellStyleReq) (err error) {
-	httpCode, respBody, err := l.LarkPut("/open-apis/sheets/v2/spreadsheets/"+req.ExcelToken+"/style", map[string]interface{}{
-		"appendStyle": req.AppendStyle,
+// BatchUpdateCellStyle 批量设置单元格样式
+func (l *LarkU) BatchUpdateCellStyle(req *BatchUpdateCellStyleReq) (err error) {
+	httpCode, respBody, err := l.LarkPut("/open-apis/sheets/v2/spreadsheets/"+req.ExcelToken+"/styles_batch_update", map[string]interface{}{
+		"data": req.Data,
 	})
 	if err != nil {
 		err = errors.Errorf("http error: %+v", err)
@@ -453,18 +472,7 @@ func (l *LarkU) SetCellStyle(req *SetCellStyleReq) (err error) {
 	if httpCode != http.StatusOK {
 		err = errors.Errorf("http error: code= %d | %s", httpCode, string(respBody))
 	}
-	res := new(SetCellStyleResp)
-	_ = json.Unmarshal(respBody, &res)
-	if res.Code != 0 {
-		err = errors.Errorf("remote service error: code = %d | %s", res.Code, res.Msg)
-	}
 	return
 }
 
-func (l *LarkU) SetRowOrColumnStyle() (err error) {
-	return
-}
-
-func (l *LarkU) InsertValueToCell() {
-
-}
+/** -------------------------------------------------单元格------------------------------------------------------------------- **/
